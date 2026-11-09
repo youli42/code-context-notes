@@ -37,6 +37,38 @@ export class StorageManager implements NoteStorage {
   }
 
   /**
+   * Serialize an in-memory absolute path for the note file.
+   *
+   * Paths inside the workspace are stored workspace-relative with `/`
+   * separators, so a committed `.code-notes/` stays valid after the repo is
+   * cloned to a different directory or machine. Paths outside the workspace
+   * (or paths we can't relativize) are kept absolute — a relative path with
+   * `..` segments would be no more portable and much easier to get wrong.
+   */
+  private toStoredPath(filePath: string): string {
+    if (!path.isAbsolute(filePath)) {
+      return filePath.split(path.sep).join('/');
+    }
+    const rel = path.relative(this.workspaceRoot, filePath);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      return filePath;
+    }
+    return rel.split(path.sep).join('/');
+  }
+
+  /**
+   * Inverse of toStoredPath. Legacy notes store an absolute path — that value
+   * passes through untouched, because we can't know which workspace root the
+   * old path belonged to. Relative values resolve against the current root.
+   */
+  private fromStoredPath(storedPath: string): string {
+    if (path.isAbsolute(storedPath)) {
+      return storedPath;
+    }
+    return path.resolve(this.workspaceRoot, storedPath);
+  }
+
+  /**
    * Get the note file path based on note ID
    * Example: noteId abc123 -> .code-notes/abc123.md
    */
@@ -195,6 +227,49 @@ export class StorageManager implements NoteStorage {
   }
 
   /**
+   * Rewrite legacy absolute `**File:**` values as workspace-relative paths.
+   *
+   * Only notes whose stored path is absolute *and* inside the workspace are
+   * touched. Notes that are already relative, or that point outside the
+   * workspace, are left exactly as they are. The note objects are otherwise
+   * untouched (no content/history/updatedAt changes) — this is a format
+   * migration, not an edit.
+   */
+  async migrateNotePathsToRelative(): Promise<{ migrated: number; skipped: number }> {
+    let migrated = 0;
+    let skipped = 0;
+
+    for (const noteFile of await this.getAllNoteFiles()) {
+      try {
+        const raw = await fs.readFile(noteFile, 'utf-8');
+        const fileLine = raw.split('\n').find(line => line.startsWith('**File:**'));
+        const stored = fileLine ? fileLine.substring(9).trim() : '';
+
+        // Not absolute, empty, or not relativizable (outside the workspace)
+        // all mean "nothing to do".
+        if (!stored || !path.isAbsolute(stored) || this.toStoredPath(stored) === stored) {
+          skipped++;
+          continue;
+        }
+
+        const note = this.markdownToNote(raw);
+        if (!note) {
+          skipped++;
+          continue;
+        }
+
+        // A single save rewrites the header in the current (relative) format.
+        await this.saveNote(note);
+        migrated++;
+      } catch {
+        skipped++;
+      }
+    }
+
+    return { migrated, skipped };
+  }
+
+  /**
    * Delete a note from storage
    * This actually updates the file to mark the note as deleted in history
    */
@@ -248,7 +323,7 @@ export class StorageManager implements NoteStorage {
     // Header with source file info
     lines.push(`# Code Context Note`);
     lines.push('');
-    lines.push(`**File:** ${note.filePath}`);
+    lines.push(`**File:** ${this.toStoredPath(note.filePath)}`);
     lines.push(`**Lines:** ${note.lineRange.start + 1}-${note.lineRange.end + 1}`);
     lines.push(`**Content Hash:** ${note.contentHash}`);
     lines.push('');
@@ -408,6 +483,11 @@ export class StorageManager implements NoteStorage {
 
   private finalizeNote(note: Partial<Note>): Note | null {
     if (note.isDeleted === undefined) note.isDeleted = false;
+    // Single place where the on-disk path representation becomes the absolute
+    // path the rest of the code (and the Note type) expects.
+    if (note.filePath) {
+      note.filePath = this.fromStoredPath(note.filePath);
+    }
     return this.isValidNote(note) ? (note as Note) : null;
   }
 

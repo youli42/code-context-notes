@@ -638,4 +638,90 @@ Hi.
 		});
 	});
 	});
+
+	describe('Relative path storage', () => {
+		const makeNote = (id: string, filePath: string): Note => ({ ...testNote, id, filePath });
+
+		it('stores a workspace file path relative to the workspace root', async () => {
+			const abs = path.join(tempDir, 'src', 'app.ts');
+			await storageManager.saveNote(makeNote('rel-1', abs));
+
+			const raw = await fs.readFile(path.join(tempDir, '.test-notes', 'rel-1.md'), 'utf-8');
+			expect(raw).toContain('**File:** src/app.ts');
+			expect(raw).not.toContain(tempDir);
+		});
+
+		it('resolves the relative path back to absolute when loading', async () => {
+			const abs = path.join(tempDir, 'src', 'app.ts');
+			await storageManager.saveNote(makeNote('rel-2', abs));
+
+			const notes = await storageManager.loadNotes(abs);
+			expect(notes).toHaveLength(1);
+			expect(notes[0].filePath).toBe(abs);
+		});
+
+		it('still loads a legacy note that stored an absolute workspace path', async () => {
+			const abs = path.join(tempDir, 'src', 'legacy.ts');
+			await fs.mkdir(path.join(tempDir, '.test-notes'), { recursive: true });
+			await fs.writeFile(path.join(tempDir, '.test-notes', 'legacy-1.md'), legacyNote('legacy-1', abs));
+
+			const notes = await storageManager.loadNotes(abs);
+			expect(notes).toHaveLength(1);
+			expect(notes[0].filePath).toBe(abs);
+		});
+
+		it('keeps files outside the workspace absolute', async () => {
+			const outside = path.resolve(tempDir, '..', 'outside.ts');
+			await storageManager.saveNote(makeNote('rel-3', outside));
+
+			const raw = await fs.readFile(path.join(tempDir, '.test-notes', 'rel-3.md'), 'utf-8');
+			expect(raw).toContain(`**File:** ${outside}`);
+		});
+
+		it('migrates a legacy absolute path to relative without touching the note', async () => {
+			const abs = path.join(tempDir, 'src', 'migrate.ts');
+			await fs.mkdir(path.join(tempDir, '.test-notes'), { recursive: true });
+			await fs.writeFile(path.join(tempDir, '.test-notes', 'legacy-2.md'), legacyNote('legacy-2', abs));
+
+			const result = await storageManager.migrateNotePathsToRelative();
+			expect(result.migrated).toBe(1);
+
+			const raw = await fs.readFile(path.join(tempDir, '.test-notes', 'legacy-2.md'), 'utf-8');
+			expect(raw).toContain('**File:** src/migrate.ts');
+
+			const notes = await storageManager.loadNotes(abs);
+			expect(notes[0].content).toBe('legacy body');
+			expect(notes[0].updatedAt).toBe('2026-05-01T00:00:00.000Z');
+		});
+
+		it('skips already-relative and outside-workspace notes during migration', async () => {
+			await storageManager.saveNote(makeNote('rel-4', path.join(tempDir, 'src', 'already.ts')));
+			await storageManager.saveNote(makeNote('rel-5', path.resolve(tempDir, '..', 'outside.ts')));
+
+			const result = await storageManager.migrateNotePathsToRelative();
+			expect(result.migrated).toBe(0);
+			expect(result.skipped).toBeGreaterThanOrEqual(2);
+		});
+	});
 });
+
+/**
+ * A v2 note file whose **File:** header is an absolute path, as written by
+ * pre-relative-path versions of the extension.
+ */
+function legacyNote(id: string, filePath: string): string {
+	return [
+		'# Code Context Note', '',
+		`**File:** ${filePath}`,
+		'**Lines:** 1-1',
+		'**Content Hash:** legacy-hash', '',
+		`## Note: ${id}`,
+		'**Format:** 2',
+		'**Author:** Legacy',
+		'**Created:** 2026-05-01T00:00:00.000Z',
+		'**Updated:** 2026-05-01T00:00:00.000Z',
+		'**Content Lines:** 1', '',
+		'## Current Content', '',
+		'legacy body',
+	].join('\n');
+}
