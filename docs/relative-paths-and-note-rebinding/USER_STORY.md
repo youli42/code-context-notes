@@ -106,3 +106,22 @@
 - [x] The shortcut edits the note on the cursor line instead of creating a new one
 - [x] With no note on that line, a message says so instead of failing silently
 - [x] After the shortcut, typing goes straight into the note editor
+
+### User Story 6: Adding a note from the keyboard focuses its input
+
+**As a** user adding notes with `Ctrl+Alt+N`
+**I want** the caret to land in the note input
+**So that** I can type the note without clicking it first
+
+#### Tasks
+
+- [x] Reproduce the focus difference against the gutter **+** button (VS Code's native add-comment flow)
+- [x] Route the shortcut through `workbench.action.addComment` when the cursor line has no note
+- [x] Keep the extension's own thread editor for a second note on the same line and for selections
+
+#### Acceptance Criteria
+
+- [x] `Ctrl+Alt+N` on a line without notes puts the caret in the note input
+- [x] Typing right after the shortcut edits the note, not the code
+- [x] Adding a second note to a line that already has notes still works
+- [x] Adding a note over a multi-line selection still covers the selection
