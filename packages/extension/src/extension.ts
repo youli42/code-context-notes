@@ -779,6 +779,41 @@ function registerAllCommands(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// Edit Note at Cursor — the keyboard-first path (Ctrl+Alt+A). The comment
+	// editor is opened in edit mode, and enableEditMode() moves focus into it,
+	// so the user can type immediately.
+	const editNoteAtCursorCommand = vscode.commands.registerCommand(
+		'codeContextNotes.editNoteAtCursor',
+		async () => {
+			if (!noteManager || !commentController) {
+				vscode.window.showErrorMessage('Code Context Notes requires a workspace folder to be opened.');
+				return;
+			}
+
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				vscode.window.showErrorMessage('No active editor');
+				return;
+			}
+
+			const filePath = editor.document.uri.fsPath;
+			const line = editor.selection.active.line;
+			const note = (await noteManager.getNotesForFile(filePath))
+				.find(n => line >= n.lineRange.start && line <= n.lineRange.end);
+
+			if (!note) {
+				vscode.window.showInformationMessage('No note at the cursor — press Ctrl+Alt+N to add one.');
+				return;
+			}
+
+			try {
+				await commentController.enableEditMode(note.id, filePath);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to edit note: ${(error as Error).message}`);
+			}
+		}
+	);
+
 	// Save Note
 	const saveNoteCommand = vscode.commands.registerCommand(
 		'codeContextNotes.saveNote',
@@ -1633,6 +1668,7 @@ function registerAllCommands(context: vscode.ExtensionContext) {
 		viewHistoryCommand,
 		refreshNotesCommand,
 		editNoteCommand,
+		editNoteAtCursorCommand,
 		saveNoteCommand,
 		cancelEditNoteCommand,
 		saveNewNoteCommand,

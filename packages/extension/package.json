@@ -67,6 +67,12 @@
         "category": "Code Notes"
       },
       {
+        "command": "codeContextNotes.editNoteAtCursor",
+        "title": "Edit Note at Cursor",
+        "icon": "$(edit)",
+        "category": "Code Notes"
+      },
+      {
         "command": "codeContextNotes.saveNote",
         "title": "Save Note",
         "icon": "$(save)",
@@ -282,6 +288,12 @@
         "command": "codeContextNotes.deleteNote",
         "key": "ctrl+alt+d",
         "mac": "cmd+alt+d",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "codeContextNotes.editNoteAtCursor",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a",
         "when": "editorTextFocus"
       },
       {
