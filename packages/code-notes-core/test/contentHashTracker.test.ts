@@ -151,6 +151,34 @@ describe('ContentHashTracker Test Suite', () => {
 		});
 	});
 
+	describe('Exact content finding (cross-file)', () => {
+		it('finds the exact code after it moves in another file', async () => {
+			const originalDoc = createMockDocument('alpha\nbeta\ngamma');
+			const range: LineRange = { start: 1, end: 1 };
+			const hash = tracker.generateHash(originalDoc, range);
+
+			const targetDoc = createMockDocument('header\nalpha\nbeta\ngamma');
+			const result = await tracker.findExactContentByHash(targetDoc, hash, range);
+
+			expect(result.found).toBe(true);
+			expect(result.newLineRange).toEqual({ start: 2, end: 2 });
+		});
+
+		it('reports not found instead of matching unrelated content', async () => {
+			const originalDoc = createMockDocument('alpha');
+			const range: LineRange = { start: 0, end: 0 };
+			const hash = tracker.generateHash(originalDoc, range);
+
+			// The fuzzy path would match this: it compares the target document
+			// against itself, so any document yields similarity 1.0 at the
+			// original range. Exact search must not.
+			const targetDoc = createMockDocument('nothing alike');
+			const result = await tracker.findExactContentByHash(targetDoc, hash, range);
+
+			expect(result.found).toBe(false);
+		});
+	});
+
 	describe('Content Validation', () => {
 		it('should validate matching content hash', async () => {
 			const content = 'function test() {\n  return true;\n}';

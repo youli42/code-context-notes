@@ -124,6 +124,36 @@ export class ContentHashTracker {
   }
 
   /**
+   * Exact-hash search only.
+   *
+   * The fuzzy fallback in findContentByHash compares the document against
+   * itself (it has no copy of the note's original text, which notes don't
+   * store), which is meaningful when relocating inside the same file but
+   * meaningless across files — it would match almost anything. Cross-file
+   * rebinding therefore uses this exact search and reports honestly when the
+   * annotated code is not in the target.
+   */
+  async findExactContentByHash(
+    document: NoteDocument,
+    targetHash: string,
+    originalRange: LineRange
+  ): Promise<ContentHashResult> {
+    if (this.generateHash(document, originalRange) === targetHash) {
+      return { found: true, newLineRange: originalRange, similarity: 1.0 };
+    }
+
+    const rangeSize = originalRange.end - originalRange.start + 1;
+    for (let startLine = 0; startLine <= document.lineCount - rangeSize; startLine++) {
+      const testRange: LineRange = { start: startLine, end: startLine + rangeSize - 1 };
+      if (this.generateHash(document, testRange) === targetHash) {
+        return { found: true, newLineRange: testRange, similarity: 1.0 };
+      }
+    }
+
+    return { found: false };
+  }
+
+  /**
    * Find content with similarity above threshold
    * Uses Levenshtein distance for fuzzy matching
    */
