@@ -88,3 +88,21 @@
 - [x] Running **Regenerate Exports** in such a workspace writes nothing and says so
 - [x] Changing an agent setting in such a workspace writes nothing
 - [x] Saving the first note creates the directory, the `.gitignore` and the exports
+
+### User Story 5: Keyboard-first editing
+
+**As a** user editing notes frequently
+**I want** a shortcut that opens the note under the cursor in edit mode with the caret already in the editor
+**So that** I can start typing without reaching for the mouse
+
+#### Tasks
+
+- [x] Add **Edit Note at Cursor** (`Ctrl+Alt+A` / `Cmd+Alt+A`, `editorTextFocus`)
+- [x] Ensure enabling edit mode moves focus into the comment editor
+- [x] Keep the same focus behaviour for the comment toolbar's edit action
+
+#### Acceptance Criteria
+
+- [x] The shortcut edits the note on the cursor line instead of creating a new one
+- [x] With no note on that line, a message says so instead of failing silently
+- [x] After the shortcut, typing goes straight into the note editor

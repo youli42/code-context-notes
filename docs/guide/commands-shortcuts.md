@@ -6,6 +6,7 @@
 |---|---|---|---|
 | Add Note | `Ctrl+Alt+N` | `Cmd+Alt+N` | Add a note to the current line or selection |
 | Delete Note at Cursor | `Ctrl+Alt+D` | `Cmd+Alt+D` | Delete the note at the cursor |
+| Edit Note at Cursor | `Ctrl+Alt+A` | `Cmd+Alt+A` | Edit the note under the cursor; the comment editor is focused so you can type immediately |
 | View Note History | `Ctrl+Alt+H` | `Cmd+Alt+H` | View a note's history |
 | Refresh All Notes | `Ctrl+Alt+R` | `Cmd+Alt+R` | Refresh all note displays |
 
@@ -19,6 +20,7 @@ All commands are available from the Command Palette (`Ctrl/Cmd+Shift+P`), prefix
 
 - **Add Note** — add a note to the selection or current line
 - **Delete Note at Cursor**
+- **Edit Note at Cursor** — open the note under the cursor in edit mode, with the caret already in the editor
 - **View Note History**
 - **Refresh All Notes**
 - **Set Note Type / Tags / Priority…** — edit a note's [structured metadata](note-types-metadata.md)
