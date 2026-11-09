@@ -596,6 +596,25 @@ function registerAllCommands(context: vscode.ExtensionContext) {
 			if (selection.isEmpty) {
 				// No selection: use current cursor line
 				const cursorLine = selection.active.line;
+
+				// With no note on this line, hand the add flow to VS Code. A thread
+				// created through the Comments API keeps keyboard focus in the code,
+				// so after the shortcut typing lands in the file instead of the note.
+				// VS Code's own add-comment action creates the thread and focuses its
+				// input — exactly what the gutter + button does.
+				const notesHere = await noteManager.getNotesAtPosition(editor.document.uri.fsPath, cursorLine);
+				if (notesHere.length === 0) {
+					try {
+						await vscode.commands.executeCommand('workbench.action.addComment');
+						return;
+					} catch {
+						// A build without the built-in action: fall through to our own
+						// editor. It works, it just doesn't hand focus to the input.
+					}
+				}
+
+				// Notes already on this line: keep our own editor so a second note
+				// can still be added to the same line.
 				range = new vscode.Range(cursorLine, 0, cursorLine, 0);
 			} else {
 				// Has selection: use selected lines
