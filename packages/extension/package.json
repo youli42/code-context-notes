@@ -220,6 +220,17 @@
         "category": "Code Notes"
       },
       {
+        "command": "codeContextNotes.rebindNote",
+        "title": "Re-attach Note to Another File…",
+        "icon": "$(link)",
+        "category": "Code Notes"
+      },
+      {
+        "command": "codeContextNotes.migrateNotePathsToRelative",
+        "title": "Migrate Notes to Relative Paths",
+        "category": "Code Notes"
+      },
+      {
         "command": "codeContextNotes.revertAgentOp",
         "title": "Revert this agent change",
         "icon": "$(discard)",
@@ -380,6 +391,11 @@
           "command": "codeContextNotes.deleteNoteFromSidebar",
           "when": "view == codeContextNotes.sidebarView && viewItem == noteNode",
           "group": "1_actions@3"
+        },
+        {
+          "command": "codeContextNotes.rebindNote",
+          "when": "view == codeContextNotes.sidebarView && viewItem == noteNode",
+          "group": "1_actions@4"
         },
         {
           "command": "codeContextNotes.openFileFromSidebar",

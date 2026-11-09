@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { StorageManager, ExportWriter, ContentHashTracker, NoteManager, SearchManager, LockManager, writeWorkspaceConfig, AuditLog, ProposalStore, hashNoteContent } from '@jnahian/code-notes-core';
-import type { AuditEntry, Proposal } from '@jnahian/code-notes-core';
+import type { AuditEntry, Note, Proposal } from '@jnahian/code-notes-core';
 import { AgentActivityProvider, AgentActivityItem } from './agentActivityProvider.js';
 import { PendingProposalsProvider, ProposalItem } from './pendingProposalsProvider.js';
 import { GitIntegration } from './gitIntegration.js';
@@ -1264,6 +1264,124 @@ function registerAllCommands(context: vscode.ExtensionContext) {
 		}
 	);
 
+	// Re-attach a note to a different file (migration aid). Accepts a sidebar
+	// note item, a Note, or falls back to the note at the cursor.
+	const rebindNoteCommand = vscode.commands.registerCommand(
+		'codeContextNotes.rebindNote',
+		async (arg?: { note?: Note } | Note) => {
+			if (!noteManager) {
+				vscode.window.showErrorMessage('Code Context Notes requires a workspace folder to be opened.');
+				return;
+			}
+
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+			if (!workspaceFolder) {
+				vscode.window.showErrorMessage('Code Context Notes requires a workspace folder to be opened.');
+				return;
+			}
+
+			let note: Note | undefined =
+				arg && 'note' in arg ? (arg as { note?: Note }).note : (arg as Note | undefined);
+
+			if (!note) {
+				const editor = vscode.window.activeTextEditor;
+				if (!editor) {
+					vscode.window.showErrorMessage('No active editor');
+					return;
+				}
+				const line = editor.selection.active.line;
+				note = (await noteManager.getNotesForFile(editor.document.uri.fsPath))
+					.find(n => line >= n.lineRange.start && line <= n.lineRange.end);
+			}
+
+			if (!note) {
+				vscode.window.showErrorMessage('No note found at the cursor or selection');
+				return;
+			}
+
+			const picked = await vscode.window.showOpenDialog({
+				canSelectFiles: true,
+				canSelectFolders: false,
+				canSelectMany: false,
+				openLabel: 'Re-attach Note',
+				defaultUri: workspaceFolder.uri,
+			});
+			if (!picked || picked.length === 0) {
+				return;
+			}
+
+			const target = picked[0];
+			const owner = vscode.workspace.getWorkspaceFolder(target);
+			if (!owner || owner.uri.fsPath !== workspaceFolder.uri.fsPath) {
+				vscode.window.showWarningMessage('Pick a file inside the current workspace — notes are stored relative to it.');
+				return;
+			}
+
+			if (path.resolve(target.fsPath) === path.resolve(note.filePath)) {
+				vscode.window.showInformationMessage('That note is already attached to this file.');
+				return;
+			}
+
+			const preview = note.content.replace(/\s+/g, ' ').trim().slice(0, 60);
+			const confirm = await vscode.window.showWarningMessage(
+				`Re-attach note "${preview}" to ${vscode.workspace.asRelativePath(target)}? The note and its history are kept.`,
+				{ modal: true },
+				'Re-attach',
+			);
+			if (confirm !== 'Re-attach') {
+				return;
+			}
+
+			try {
+				const document = await vscode.workspace.openTextDocument(target);
+				const { note: rebound, anchored } = await noteManager.rebindNote(note.id, target.fsPath, document);
+				codeLensProvider.refresh();
+				if (anchored) {
+					vscode.window.showInformationMessage(
+						`Note re-attached to ${vscode.workspace.asRelativePath(rebound.filePath)} at line ${rebound.lineRange.start + 1}.`,
+					);
+				} else {
+					vscode.window.showWarningMessage(
+						`Note re-attached to ${vscode.workspace.asRelativePath(rebound.filePath)}, but the annotated code wasn't found there. Its line range was kept as close as possible.`,
+					);
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to re-attach note: ${(error as Error).message}`);
+			}
+		}
+	);
+
+	// Migrate legacy absolute note paths to workspace-relative storage
+	const migratePathsCommand = vscode.commands.registerCommand(
+		'codeContextNotes.migrateNotePathsToRelative',
+		async () => {
+			if (!noteManager) {
+				vscode.window.showErrorMessage('Code Context Notes requires a workspace folder to be opened.');
+				return;
+			}
+
+			const confirm = await vscode.window.showWarningMessage(
+				'Rewrite every note so its **File:** path is relative to this workspace? This makes .code-notes/ portable across machines and checkout directories. Paths outside the workspace are left untouched.',
+				{ modal: true },
+				'Migrate',
+			);
+			if (confirm !== 'Migrate') {
+				return;
+			}
+
+			try {
+				const { migrated, skipped } = await noteManager.migrateNotePathsToRelative();
+				exportWriter?.scheduleRegenerate(() => noteManager!.getAllNotesAndErrors());
+				codeLensProvider.refresh();
+				vscode.window.showInformationMessage(
+					`Code Notes: ${migrated} note file(s) migrated to relative paths, ${skipped} left unchanged.`,
+				);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to migrate note paths: ${(error as Error).message}`);
+			}
+		}
+	);
+
 	// Regenerate Exports
 	const regenerateExportsCommand = vscode.commands.registerCommand(
 		'codeContextNotes.regenerateExports',
@@ -1451,6 +1569,8 @@ function registerAllCommands(context: vscode.ExtensionContext) {
 		deleteNoteFromSidebarCommand,
 		viewNoteHistoryFromSidebarCommand,
 		openFileFromSidebarCommand,
+		rebindNoteCommand,
+		migratePathsCommand,
 		regenerateExportsCommand,
 		filterByTypeCommand,
 		toggleExpiredCommand,
