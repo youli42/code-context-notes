@@ -226,6 +226,12 @@
         "category": "Code Notes"
       },
       {
+        "command": "codeContextNotes.rebindNotesForFile",
+        "title": "Re-attach All Notes in This File…",
+        "icon": "$(link)",
+        "category": "Code Notes"
+      },
+      {
         "command": "codeContextNotes.migrateNotePathsToRelative",
         "title": "Migrate Notes to Relative Paths",
         "category": "Code Notes"
@@ -401,6 +407,11 @@
           "command": "codeContextNotes.openFileFromSidebar",
           "when": "view == codeContextNotes.sidebarView && viewItem == fileNode",
           "group": "navigation@1"
+        },
+        {
+          "command": "codeContextNotes.rebindNotesForFile",
+          "when": "view == codeContextNotes.sidebarView && viewItem == fileNode",
+          "group": "1_actions@1"
         }
       ],
       "comments/commentThread/context": [
