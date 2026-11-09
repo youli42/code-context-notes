@@ -355,6 +355,85 @@ export class NoteManager extends EventEmitter {
   }
 
   /**
+   * Re-attach a note to a different file (migration path).
+   *
+   * The note id, content and history are untouched — only the anchor file
+   * changes. When the target document is supplied, the annotated code is
+   * looked up again by content hash, so a note carried into a renamed or
+   * moved file lands on the lines it was written about instead of line 1.
+   * If the code isn't there, the old line range is clamped to the new file
+   * and no hash is invented (that would forget what the note tracks).
+   *
+   * Human-only: like updateNoteMetadata this is not routed through the trust
+   * model, and no MCP tool reaches it.
+   */
+  async rebindNote(
+    noteId: string,
+    newFilePath: string,
+    document?: NoteDocument,
+  ): Promise<{ note: Note; anchored: boolean }> {
+    if (this.agentWriter) {
+      throw new Error('rebindNote is not available to agent writers');
+    }
+
+    return this.withNoteLock(noteId, async () => {
+      const raw = await this.storage.loadNoteById(noteId);
+      const note = raw ? applyDefaults(raw) : undefined;
+      if (!note) throw new Error(`Note with id ${noteId} not found`);
+      if (note.isDeleted) throw new Error(`Cannot re-attach deleted note ${noteId}`);
+
+      const oldFilePath = note.filePath;
+      let anchored = false;
+
+      if (document) {
+        const match = await this.hashTracker.findContentByHash(document, note.contentHash, note.lineRange);
+        if (match.found && match.newLineRange) {
+          note.lineRange = match.newLineRange;
+          anchored = true;
+        } else {
+          const lastLine = Math.max(0, document.lineCount - 1);
+          note.lineRange = {
+            start: Math.min(note.lineRange.start, lastLine),
+            end: Math.min(note.lineRange.end, lastLine),
+          };
+        }
+      }
+
+      note.filePath = newFilePath;
+      note.updatedAt = new Date().toISOString();
+
+      await this.storage.saveNote(note);
+      this.moveNoteInCache(note, oldFilePath);
+      this.clearWorkspaceCache();
+
+      if (this.searchManager) {
+        await this.searchManager.updateIndex(note);
+      }
+
+      this.emit('noteChanged', { type: 'updated', note });
+      return { note, anchored };
+    });
+  }
+
+  /**
+   * Rewrite every legacy absolute note path as workspace-relative (see
+   * StorageManager.migrateNotePathsToRelative). Human-only, same reasoning
+   * as rebindNote.
+   */
+  async migrateNotePathsToRelative(): Promise<{ migrated: number; skipped: number }> {
+    if (this.agentWriter) {
+      throw new Error('migrateNotePathsToRelative is not available to agent writers');
+    }
+
+    const result = await this.storage.migrateNotePathsToRelative();
+    if (result.migrated > 0) {
+      this.clearAllCache();
+      this.emit('noteChanged', { type: 'updated' });
+    }
+    return result;
+  }
+
+  /**
    * Delete a note (soft delete)
    */
   async deleteNote(noteId: string, filePath: string): Promise<void> {
@@ -629,6 +708,33 @@ export class NoteManager extends EventEmitter {
         notes[index] = applyDefaults(updatedNote);
       }
     }
+  }
+
+  /**
+   * Move a cached note from its old file bucket to its new one. Mirrors
+   * updateNoteInCache, which can't be used here because rebinding changes the
+   * cache key (filePath) itself.
+   */
+  private moveNoteInCache(note: Note, oldFilePath: string): void {
+    const oldNotes = this.noteCache.get(oldFilePath);
+    if (oldNotes) {
+      const index = oldNotes.findIndex(n => n.id === note.id);
+      if (index !== -1) {
+        oldNotes.splice(index, 1);
+      }
+      if (oldNotes.length === 0) {
+        this.noteCache.delete(oldFilePath);
+      }
+    }
+
+    const newNotes = this.noteCache.get(note.filePath) || [];
+    const existing = newNotes.findIndex(n => n.id === note.id);
+    if (existing !== -1) {
+      newNotes[existing] = applyDefaults(note);
+    } else {
+      newNotes.push(applyDefaults(note));
+    }
+    this.noteCache.set(note.filePath, newNotes);
   }
 
   /** The human's display name — used to attribute an approved proposal. */

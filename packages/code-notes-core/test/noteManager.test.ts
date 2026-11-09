@@ -1129,6 +1129,80 @@ describe('NoteManager Test Suite', () => {
 		});
 	});
 
+	describe('Note rebinding', () => {
+		it('re-attaches a note to another file and re-anchors its code by hash', async () => {
+			const oldPath = path.join(tempDir, 'src', 'old.ts');
+			const oldDoc = createMockDocument('alpha\nbeta\ngamma', oldPath);
+			const note = await noteManager.createNote(
+				{ content: 'watch the beta', filePath: oldPath, lineRange: { start: 1, end: 1 } },
+				oldDoc,
+			);
+
+			const newPath = path.join(tempDir, 'src', 'new.ts');
+			const newDoc = createMockDocument('header\n\nalpha\nbeta\ngamma', newPath);
+
+			const result = await noteManager.rebindNote(note.id, newPath, newDoc);
+
+			expect(result.anchored).toBe(true);
+			expect(result.note.filePath).toBe(newPath);
+			expect(result.note.lineRange).toEqual({ start: 3, end: 3 });
+			expect(await noteManager.getNotesForFile(oldPath)).toHaveLength(0);
+			expect(await noteManager.getNotesForFile(newPath)).toHaveLength(1);
+		});
+
+		it('writes the new file path relative to the workspace root', async () => {
+			const oldPath = path.join(tempDir, 'src', 'a.ts');
+			const doc = createMockDocument('alpha', oldPath);
+			const note = await noteManager.createNote(
+				{ content: 'n', filePath: oldPath, lineRange: { start: 0, end: 0 } },
+				doc,
+			);
+
+			const newPath = path.join(tempDir, 'lib', 'b.ts');
+			await noteManager.rebindNote(note.id, newPath, createMockDocument('alpha', newPath));
+
+			const raw = await fs.readFile(path.join(tempDir, '.test-notes', `${note.id}.md`), 'utf-8');
+			expect(raw).toContain('**File:** lib/b.ts');
+		});
+
+		it('keeps the note and its original hash when the code is absent from the target', async () => {
+			const oldPath = path.join(tempDir, 'src', 'c.ts');
+			const doc = createMockDocument('line one\nline two\nline three', oldPath);
+			const note = await noteManager.createNote(
+				{ content: 'n', filePath: oldPath, lineRange: { start: 1, end: 2 } },
+				doc,
+			);
+
+			const newPath = path.join(tempDir, 'src', 'd.ts');
+			const result = await noteManager.rebindNote(note.id, newPath, createMockDocument('totally\ndifferent', newPath));
+
+			expect(result.anchored).toBe(false);
+			expect(result.note.filePath).toBe(newPath);
+			expect(result.note.contentHash).toBe(note.contentHash);
+			// Old range clamped into the 2-line target instead of left dangling.
+			expect(result.note.lineRange.end).toBeLessThanOrEqual(1);
+		});
+
+		it('refuses to re-attach a deleted note', async () => {
+			const filePath = path.join(tempDir, 'src', 'e.ts');
+			const doc = createMockDocument('alpha', filePath);
+			const note = await noteManager.createNote(
+				{ content: 'n', filePath, lineRange: { start: 0, end: 0 } },
+				doc,
+			);
+			await noteManager.deleteNote(note.id, filePath);
+
+			const target = path.join(tempDir, 'src', 'f.ts');
+			await expect(noteManager.rebindNote(note.id, target, createMockDocument('alpha', target)))
+				.rejects.toThrow(/deleted/);
+		});
+
+		it('is not available to agent writers', async () => {
+			const agentManager = new NoteManager(storage, hashTracker, gitIntegration, { agentWriter: true });
+			await expect(agentManager.rebindNote('any-id', '/tmp/x.ts')).rejects.toThrow(/agent writers/);
+		});
+	});
+
 	describe('Locking', () => {
 		it('creates and releases the note lock file around a write', async () => {
 			const locksDir = path.join(tempDir, '.test-notes', '.locks');
