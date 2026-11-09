@@ -764,8 +764,21 @@ export class CommentController {
     this.currentlyEditingNoteId = noteId;
     this.currentlyEditingThreadKey = threadKey;
 
-    // Expand the thread
-    thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+    // Entering edit mode must also put the caret in the editor, otherwise a
+    // keyboard shortcut that opens it leaves the user one Tab away from typing.
+    //
+    // VS Code does not focus the editor when a comment merely changes mode
+    // through the API: its comments widget focuses a thread that *becomes
+    // expanded* while its only comment is in edit mode. So collapse first,
+    // apply the mode, and expand last — that fires the focus path and opens the
+    // thread in one step.
+    const wasExpanded = thread.collapsibleState === vscode.CommentThreadCollapsibleState.Expanded;
+    thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+    if (wasExpanded) {
+      // Let the collapse render; without an observable state change the
+      // expansion below never triggers VS Code's focus handling.
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
 
     // Switch comment to edit mode
     if (thread.comments.length > 0) {
@@ -778,6 +791,8 @@ export class CommentController {
       };
       thread.comments = [editableComment];
     }
+
+    thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
   }
 
   /**
