@@ -13,6 +13,7 @@ import { ContentHashTracker } from './contentHashTracker.js';
 import { LockManager } from './lockManager.js';
 import { AuditLog, hashNoteContent } from './auditLog.js';
 import { ProposalStore, PendingWriteError } from './proposalStore.js';
+import { canonicalizePath } from './pathUtils.js';
 
 /**
  * NoteManager coordinates all note operations
@@ -386,7 +387,9 @@ export class NoteManager extends EventEmitter {
       let anchored = false;
 
       if (document) {
-        const match = await this.hashTracker.findContentByHash(document, note.contentHash, note.lineRange);
+        // Exact search only: rebinding crosses files, and the fuzzy fallback
+        // needs the note's original text, which notes don't store.
+        const match = await this.hashTracker.findExactContentByHash(document, note.contentHash, note.lineRange);
         if (match.found && match.newLineRange) {
           note.lineRange = match.newLineRange;
           anchored = true;
@@ -413,6 +416,35 @@ export class NoteManager extends EventEmitter {
       this.emit('noteChanged', { type: 'updated', note });
       return { note, anchored };
     });
+  }
+
+  /**
+   * Re-attach every note currently attached to `oldFilePath` to
+   * `newFilePath` in one pass — the batch form of rebindNote, for when a
+   * file was renamed or its code moved and the reference is gone.
+   *
+   * Each note is handled exactly like a single rebind (same anchoring and
+   * clamping rules), and the counts report how many were found in the target
+   * so the UI can be honest about it.
+   */
+  async rebindNotesForFile(
+    oldFilePath: string,
+    newFilePath: string,
+    document?: NoteDocument,
+  ): Promise<{ total: number; anchored: number; unanchored: number }> {
+    if (this.agentWriter) {
+      throw new Error('rebindNotesForFile is not available to agent writers');
+    }
+
+    const notes = await this.getNotesForFile(oldFilePath);
+    let anchored = 0;
+    for (const note of notes) {
+      const result = await this.rebindNote(note.id, newFilePath, document);
+      if (result.anchored) {
+        anchored++;
+      }
+    }
+    return { total: notes.length, anchored, unanchored: notes.length - anchored };
   }
 
   /**
@@ -500,9 +532,12 @@ export class NoteManager extends EventEmitter {
    * Get all notes for a file (excluding deleted notes)
    */
   async getNotesForFile(filePath: string): Promise<Note[]> {
+    // Cache keys are canonical so a differently-cased path (F:\ vs f:\)
+    // cannot create a second, stale bucket for the same file.
+    const cacheKey = canonicalizePath(filePath);
     // Check cache first
-    if (this.noteCache.has(filePath)) {
-      return this.noteCache.get(filePath)!.filter(n => !n.isDeleted);
+    if (this.noteCache.has(cacheKey)) {
+      return this.noteCache.get(cacheKey)!.filter(n => !n.isDeleted);
     }
 
     // Load from storage and apply defaults at the boundary. The cache always
@@ -512,7 +547,7 @@ export class NoteManager extends EventEmitter {
     const notes = (await this.storage.loadAllNotes(filePath)).map(applyDefaults);
 
     // Update cache
-    this.noteCache.set(filePath, notes);
+    this.noteCache.set(cacheKey, notes);
 
     // Return non-deleted notes
     return notes.filter(n => !n.isDeleted);
@@ -522,16 +557,17 @@ export class NoteManager extends EventEmitter {
    * Get all notes for a file including deleted notes
    */
   async getAllNotesForFile(filePath: string): Promise<Note[]> {
+    const cacheKey = canonicalizePath(filePath);
     // Check cache first
-    if (this.noteCache.has(filePath)) {
-      return this.noteCache.get(filePath)!;
+    if (this.noteCache.has(cacheKey)) {
+      return this.noteCache.get(cacheKey)!;
     }
 
     // Load from storage (including deleted notes) and apply defaults at the boundary
     const notes = (await this.storage.loadAllNotes(filePath)).map(applyDefaults);
 
     // Update cache
-    this.noteCache.set(filePath, notes);
+    this.noteCache.set(cacheKey, notes);
 
     return notes;
   }
@@ -691,9 +727,10 @@ export class NoteManager extends EventEmitter {
    * always honor the NoteManager boundary guarantee.
    */
   private addNoteToCache(note: Note): void {
-    const notes = this.noteCache.get(note.filePath) || [];
+    const cacheKey = canonicalizePath(note.filePath);
+    const notes = this.noteCache.get(cacheKey) || [];
     notes.push(applyDefaults(note));
-    this.noteCache.set(note.filePath, notes);
+    this.noteCache.set(cacheKey, notes);
   }
 
   /**
@@ -701,7 +738,7 @@ export class NoteManager extends EventEmitter {
    * always honor the NoteManager boundary guarantee.
    */
   private updateNoteInCache(updatedNote: Note): void {
-    const notes = this.noteCache.get(updatedNote.filePath);
+    const notes = this.noteCache.get(canonicalizePath(updatedNote.filePath));
     if (notes) {
       const index = notes.findIndex(n => n.id === updatedNote.id);
       if (index !== -1) {
@@ -716,25 +753,28 @@ export class NoteManager extends EventEmitter {
    * cache key (filePath) itself.
    */
   private moveNoteInCache(note: Note, oldFilePath: string): void {
-    const oldNotes = this.noteCache.get(oldFilePath);
+    const oldKey = canonicalizePath(oldFilePath);
+    const newKey = canonicalizePath(note.filePath);
+
+    const oldNotes = this.noteCache.get(oldKey);
     if (oldNotes) {
       const index = oldNotes.findIndex(n => n.id === note.id);
       if (index !== -1) {
         oldNotes.splice(index, 1);
       }
       if (oldNotes.length === 0) {
-        this.noteCache.delete(oldFilePath);
+        this.noteCache.delete(oldKey);
       }
     }
 
-    const newNotes = this.noteCache.get(note.filePath) || [];
+    const newNotes = this.noteCache.get(newKey) || [];
     const existing = newNotes.findIndex(n => n.id === note.id);
     if (existing !== -1) {
       newNotes[existing] = applyDefaults(note);
     } else {
       newNotes.push(applyDefaults(note));
     }
-    this.noteCache.set(note.filePath, newNotes);
+    this.noteCache.set(newKey, newNotes);
   }
 
   /** The human's display name — used to attribute an approved proposal. */
@@ -746,7 +786,7 @@ export class NoteManager extends EventEmitter {
    * Clear the cache for a specific file
    */
   clearCacheForFile(filePath: string): void {
-    this.noteCache.delete(filePath);
+    this.noteCache.delete(canonicalizePath(filePath));
   }
 
   /**

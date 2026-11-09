@@ -1201,6 +1201,48 @@ describe('NoteManager Test Suite', () => {
 			const agentManager = new NoteManager(storage, hashTracker, gitIntegration, { agentWriter: true });
 			await expect(agentManager.rebindNote('any-id', '/tmp/x.ts')).rejects.toThrow(/agent writers/);
 		});
+
+		it('re-attaches every note attached to one file in a single call', async () => {
+			const oldPath = path.join(tempDir, 'src', 'bulk-old.ts');
+			const oldDoc = createMockDocument('alpha\nbeta\ngamma', oldPath);
+			for (const line of [0, 1, 2]) {
+				await noteManager.createNote(
+					{ content: `note ${line}`, filePath: oldPath, lineRange: { start: line, end: line } },
+					oldDoc,
+				);
+			}
+
+			const newPath = path.join(tempDir, 'src', 'bulk-new.ts');
+			const newDoc = createMockDocument('padding\nalpha\nbeta\ngamma', newPath);
+
+			const result = await noteManager.rebindNotesForFile(oldPath, newPath, newDoc);
+
+			expect(result).toEqual({ total: 3, anchored: 3, unanchored: 0 });
+			expect(await noteManager.getNotesForFile(oldPath)).toHaveLength(0);
+			expect(await noteManager.getNotesForFile(newPath)).toHaveLength(3);
+		});
+
+		it('counts notes whose code is missing from the target file', async () => {
+			const oldPath = path.join(tempDir, 'src', 'bulk2-old.ts');
+			const oldDoc = createMockDocument('alpha\nbeta', oldPath);
+			await noteManager.createNote(
+				{ content: 'n', filePath: oldPath, lineRange: { start: 0, end: 0 } },
+				oldDoc,
+			);
+
+			const newPath = path.join(tempDir, 'src', 'bulk2-new.ts');
+			const result = await noteManager.rebindNotesForFile(oldPath, newPath, createMockDocument('nothing alike', newPath));
+
+			expect(result).toEqual({ total: 1, anchored: 0, unanchored: 1 });
+		});
+
+		it('returns zero counts for a file with no notes', async () => {
+			const result = await noteManager.rebindNotesForFile(
+				path.join(tempDir, 'src', 'empty.ts'),
+				path.join(tempDir, 'src', 'target.ts'),
+			);
+			expect(result).toEqual({ total: 0, anchored: 0, unanchored: 0 });
+		});
 	});
 
 	describe('Locking', () => {
