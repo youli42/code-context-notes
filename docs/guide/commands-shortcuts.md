@@ -25,6 +25,7 @@ All commands are available from the Command Palette (`Ctrl/Cmd+Shift+P`), prefix
 - **Filter Notes by Type…** — filter the sidebar by type/tag
 - **Toggle Expired Notes** — show or hide expired notes
 - **Re-attach Note to Another File…** — point an existing note at a different file; content and history are kept, and the code is re-located by content hash
+- **Re-attach All Notes in This File…** — batch form of the above for a whole file group in the sidebar (right-click the file node), for when the old file was renamed, moved or deleted
 - **Migrate Notes to Relative Paths** — rewrite legacy absolute `**File:**` paths as workspace-relative so notes stay portable
 
 ### Sidebar

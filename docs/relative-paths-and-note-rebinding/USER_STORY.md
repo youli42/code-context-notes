@@ -23,6 +23,7 @@
 - [x] `loadNotes(absolutePath)` still returns the note after a round trip
 - [x] A note written by an older version still loads unchanged
 - [x] **Migrate Notes to Relative Paths** rewrites only convertible notes and reports counts
+- [x] Legacy absolute paths match case-insensitively on Windows (`f:\…` vs `F:\…`)
 
 ### User Story 2: Re-attach an old note to a different code file
 
@@ -46,3 +47,23 @@
 - [x] The stored path of the re-attached note is relative to the workspace root
 - [x] Re-attaching a deleted note is refused
 - [x] The command is not available to agent writers
+
+### User Story 3: Re-attach all notes of a file at once
+
+**As a** user whose file was renamed, moved or deleted
+**I want** to point every note attached to that file at a new file in one action
+**So that** I do not have to re-attach 10–100 notes one by one
+
+#### Tasks
+
+- [x] Add `NoteManager.rebindNotesForFile(oldFilePath, newFilePath, document?)`
+- [x] Share the file picker between the single and batch commands
+- [x] Add **Re-attach All Notes in This File…** to the sidebar file-node context menu
+- [x] Report total / re-anchored / kept-old-line counts
+- [x] Unit tests for anchored, partially anchored and empty groups
+
+#### Acceptance Criteria
+
+- [x] A file group with N notes produces N re-attached notes under the new file
+- [x] Notes whose code is missing are counted as unanchored, not dropped
+- [x] Re-attaching a file with no notes reports zero instead of failing

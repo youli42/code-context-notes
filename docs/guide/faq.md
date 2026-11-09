@@ -24,6 +24,8 @@ Commit the `.code-notes/` directory. Note paths are stored relative to the works
 
 Right-click the note in the **Code Notes** sidebar and choose **Re-attach Note to Another File…**, then pick the new file. The note, its history and its metadata are kept; the annotated code is re-located by content hash when it exists in the target file.
 
+To move a whole file's notes at once, right-click the file group instead and choose **Re-attach All Notes in This File…**. Every note keeps its own content and history and is re-anchored separately, so notes whose code is missing from the target are reported rather than lost.
+
 ### Can AI agents read and write my notes?
 
 Yes — through the standalone [MCP server](agents-and-mcp.md). What agents are allowed to do is governed by the [trust model](trust-model.md): by default (`audit`) their writes land but are logged and revertible; `queue` mode holds them for your approval; `direct` applies them immediately.
