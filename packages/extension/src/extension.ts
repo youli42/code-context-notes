@@ -82,6 +82,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// truth, and keep them in sync.
 	const storagePath = path.join(workspaceRoot, storageDirectory);
 	const syncWorkspaceConfig = async () => {
+		// config.json lives inside .code-notes/, which appears with the first
+		// note. Changing an agent setting in a workspace that has no notes must
+		// not create the folder either.
+		if (!(await storage.storageExists())) {
+			return;
+		}
+
 		const cfg = vscode.workspace.getConfiguration('codeContextNotes');
 		await writeWorkspaceConfig(storagePath, {
 			agentWriteMode: cfg.get<'direct' | 'audit' | 'queue'>('agentWriteMode', 'audit'),
@@ -133,8 +140,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const gitIntegration = new GitIntegration(workspaceRoot, authorName);
 	const lockManager = new LockManager(path.join(workspaceRoot, storageDirectory, '.locks'), 'extension');
 
-	// Create storage directory
-	await storage.createStorage();
+	// The storage directory is created lazily, by the first note write. Opening
+	// an unrelated workspace must not leave a .code-notes/ folder behind.
 
 	// Initialize note manager
 	noteManager = new NoteManager(storage, hashTracker, gitIntegration, { lockManager });
@@ -142,9 +149,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Mirror the settings for the MCP server, but only once this workspace
 	// actually uses notes. writeWorkspaceConfig creates a git-visible file, and
 	// opening an unrelated project with the extension installed must not add
-	// one. (storageExists() is no use as the signal — createStorage() above
-	// makes it true everywhere.) A workspace with no config.json reads as the
-	// default mode anyway, so nothing is lost by waiting.
+	// one. Note files are also what creates .code-notes/ (see the lazy creation
+	// note above), so an empty list means "nothing to mirror yet". A workspace
+	// with no config.json reads as the default mode anyway, so nothing is lost
+	// by waiting.
 	if ((await storage.getAllNoteFiles()).length > 0) {
 		await syncWorkspaceConfig();
 	}
@@ -1485,6 +1493,8 @@ function registerAllCommands(context: vscode.ExtensionContext) {
 				const outcome = await exportWriter.regenerate({ notes, errors });
 				if (outcome === 'written') {
 					vscode.window.showInformationMessage(`Code Notes: regenerated exports for ${notes.length} notes.`);
+				} else if (outcome === 'skipped') {
+					vscode.window.showInformationMessage('Code Notes: no notes in this workspace yet, so there is nothing to export.');
 				} else if (outcome === 'disabled') {
 					vscode.window.showWarningMessage('Code Notes: exports are disabled (codeContextNotes.exports.enabled). Nothing was written.');
 				} else {
