@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './pathUtils.js';
 export * from './noteDefaults.js';
 export * from './workspaceConfig.js';
 export * from './proposalStore.js';

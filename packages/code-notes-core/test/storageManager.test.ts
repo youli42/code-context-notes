@@ -694,6 +694,16 @@ Hi.
 			expect(notes[0].updatedAt).toBe('2026-05-01T00:00:00.000Z');
 		});
 
+		it.skipIf(process.platform !== 'win32')('binds a legacy absolute path regardless of drive-letter case', async () => {
+			const abs = path.join(tempDir, 'src', 'case.ts');
+			const differentlyCased = abs.charAt(0).toLowerCase() + abs.slice(1);
+			await fs.mkdir(path.join(tempDir, '.test-notes'), { recursive: true });
+			await fs.writeFile(path.join(tempDir, '.test-notes', 'legacy-4.md'), legacyNote('legacy-4', differentlyCased));
+
+			expect(await storageManager.loadNotes(abs)).toHaveLength(1);
+			expect(await storageManager.loadNotes(differentlyCased)).toHaveLength(1);
+		});
+
 		it('skips already-relative and outside-workspace notes during migration', async () => {
 			await storageManager.saveNote(makeNote('rel-4', path.join(tempDir, 'src', 'already.ts')));
 			await storageManager.saveNote(makeNote('rel-5', path.resolve(tempDir, '..', 'outside.ts')));

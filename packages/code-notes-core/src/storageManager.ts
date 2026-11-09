@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { Note, NoteStorage, NoteMetadata, NoteType, NoteScope, NotePriority, AuthorType, NoteReference } from './types.js';
 import { NOTE_DEFAULTS } from './noteDefaults.js';
+import { pathsEqual } from './pathUtils.js';
 
 // Allowed values for structured fields parsed from note markdown.
 // Must stay in sync with the union types in types.ts.
@@ -186,8 +187,9 @@ export class StorageManager implements NoteStorage {
         const content = await fs.readFile(noteFile, 'utf-8');
         const note = this.markdownToNote(content);
 
-        // Include all notes for the specified file (including deleted)
-        if (note && note.filePath === filePath) {
+        // Include all notes for the specified file (including deleted).
+        // Compared case-insensitively on Windows — see pathsEqual.
+        if (note && pathsEqual(note.filePath, filePath)) {
           notes.push(note);
         }
       } catch (error) {
