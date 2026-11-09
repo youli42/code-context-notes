@@ -1,6 +1,6 @@
 # Storage Format
 
-Everything lives under the storage directory (`.code-notes/` by default; configurable via `codeContextNotes.storageDirectory`). All formats are plain text so they read, diff, and merge like source.
+Everything lives under the storage directory (`.code-notes/` by default; configurable via `codeContextNotes.storageDirectory`). The directory is created with your **first note** — opening a workspace, or regenerating exports in one that has no notes, never creates it. All formats are plain text so they read, diff, and merge like source.
 
 ## Directory layout
 

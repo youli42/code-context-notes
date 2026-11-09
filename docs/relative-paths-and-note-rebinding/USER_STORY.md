@@ -67,3 +67,24 @@
 - [x] A file group with N notes produces N re-attached notes under the new file
 - [x] Notes whose code is missing are counted as unanchored, not dropped
 - [x] Re-attaching a file with no notes reports zero instead of failing
+
+### User Story 4: Do not create `.code-notes/` until there is a note
+
+**As a** developer who installed the extension once
+**I want** the storage folder to appear only when I actually write a note
+**So that** unrelated workspaces are not polluted with an empty `.code-notes/`
+
+#### Tasks
+
+- [x] Stop creating the storage directory during activation
+- [x] Skip export regeneration (and directory creation) when the workspace has no notes
+- [x] Report that skip as `skipped` instead of writing empty `INDEX.json`/`AGENTS.md`
+- [x] Stop mirroring agent settings into a workspace that has no storage directory
+- [x] Keep creating the directory, and its self-ignoring `.gitignore`, on the first note write
+
+#### Acceptance Criteria
+
+- [x] Opening a workspace without notes leaves no `.code-notes/` behind
+- [x] Running **Regenerate Exports** in such a workspace writes nothing and says so
+- [x] Changing an agent setting in such a workspace writes nothing
+- [x] Saving the first note creates the directory, the `.gitignore` and the exports

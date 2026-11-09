@@ -14,7 +14,7 @@ Yes — notes work with every file type VS Code supports. They're stored separat
 
 ### Are notes stored in my repository?
 
-They live in `.code-notes/`. Commit it to share notes with your team, or add it to `.gitignore` to keep them local. See [Storage format](../reference/storage-format.md) for which sub-paths to ignore.
+They live in `.code-notes/`, which is created with your first note — a workspace you never annotate stays untouched. Commit it to share notes with your team, or add it to `.gitignore` to keep them local. See [Storage format](../reference/storage-format.md) for which sub-paths to ignore.
 
 ### How do I share notes with my team?
 
