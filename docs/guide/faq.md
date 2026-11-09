@@ -18,7 +18,11 @@ They live in `.code-notes/`. Commit it to share notes with your team, or add it 
 
 ### How do I share notes with my team?
 
-Commit the `.code-notes/` directory. Teammates with the extension installed will see every note.
+Commit the `.code-notes/` directory. Note paths are stored relative to the workspace root, so teammates see every note even when their checkout lives somewhere else. Notes created before v0.6 hold absolute paths — run **Migrate Notes to Relative Paths** once before sharing them.
+
+### I moved or renamed a file — can I move its notes with it?
+
+Right-click the note in the **Code Notes** sidebar and choose **Re-attach Note to Another File…**, then pick the new file. The note, its history and its metadata are kept; the annotated code is re-located by content hash when it exists in the target file.
 
 ### Can AI agents read and write my notes?
 

@@ -9,7 +9,7 @@ The canonical shape of a note, as defined in [`packages/code-notes-core/src/type
 | `id` | `string` | Unique note id (also the on-disk filename). |
 | `content` | `string` | Current note body (markdown). May be empty. |
 | `author` | `string` | Who wrote the current content. |
-| `filePath` | `string` | Absolute path to the annotated file. |
+| `filePath` | `string` | Absolute path to the annotated file, in memory. On disk it is stored relative to the workspace root (pre-v0.6 notes may hold an absolute path). |
 | `lineRange` | `LineRange` | `{ start, end }`, **0-based, inclusive**. |
 | `contentHash` | `string` | Hash of the annotated *code* (drives relocation). |
 | `createdAt` | `string` | ISO 8601. |

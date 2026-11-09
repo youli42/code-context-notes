@@ -58,6 +58,12 @@ Original content
 
 Metadata lines are only written when set / non-default (`**Type:**`, `**Scope:**`, `**Priority:**`, `**Tags:**`, `**AuthorType:**`, `**ApprovedBy:**`, `**ExpiresAt:**`, `**References:**`, and `**Status:** DELETED` for soft-deleted notes).
 
+### File paths
+
+`**File:**` holds the annotated file's path **relative to the workspace root**, with `/` separators — so a committed `.code-notes/` keeps working when the repository is cloned to another directory or machine. Files that live outside the workspace are stored absolute.
+
+Notes written before v0.6 store an absolute path. They load unchanged and are rewritten in relative form the next time they are saved; **Code Notes: Migrate Notes to Relative Paths** converts them all in one go.
+
 ### Why length-delimited
 
 `**Content Lines:** N` tells the parser to read exactly *N* lines as content, and each history entry's fence carries its own line count (` ```lines=M `). Because content is agent-controllable input, this guarantees a note body containing `**Status:** DELETED` or `## Edit History` is captured verbatim and can never be re-parsed as structure (which previously let a note delete itself or forge history on reload). Line ranges are stored **1-based** for readability and converted to 0-based on load.

@@ -24,6 +24,8 @@ All commands are available from the Command Palette (`Ctrl/Cmd+Shift+P`), prefix
 - **Set Note Type / Tags / Priority…** — edit a note's [structured metadata](note-types-metadata.md)
 - **Filter Notes by Type…** — filter the sidebar by type/tag
 - **Toggle Expired Notes** — show or hide expired notes
+- **Re-attach Note to Another File…** — point an existing note at a different file; content and history are kept, and the code is re-located by content hash
+- **Migrate Notes to Relative Paths** — rewrite legacy absolute `**File:**` paths as workspace-relative so notes stay portable
 
 ### Sidebar
 

@@ -21,7 +21,8 @@ Current, user-facing docs live in **guide/** and **reference/**. The other folde
 
 ## Other
 
-- **changelogs/** — per-version release notes ([latest: v0.5.0](changelogs/v0.5.0.md))
+- **changelogs/** — per-version release notes ([latest: v0.6.0](changelogs/v0.6.0.md))
+- **relative-paths-and-note-rebinding/** — [user story](relative-paths-and-note-rebinding/USER_STORY.md) for workspace-relative note paths and note re-attaching
 - **agent-trust-model/** — trust-model design notes and spec
 - **superpowers/** — implementation plans and specs
 - **architecture/**, **testing/**, **development/**, **guides/**, **archive/** — historical / development documentation
