@@ -49,8 +49,12 @@ describe('ExportWriter', () => {
   });
 
   it('regeneration failure surfaces via onError without throwing', async () => {
-    const ws = '/this/path/does/not/exist/anywhere';
-    const writer = new ExportWriter(ws, '.code-notes', { debounceMs: 0 });
+    // A *file* used as the workspace root: creating a directory under it fails
+    // with ENOTDIR on every platform, unlike a POSIX path that Windows happily
+    // turns into a creatable relative path.
+    const notADirectory = path.join(await tmpdir(), 'not-a-directory');
+    await fs.writeFile(notADirectory, '');
+    const writer = new ExportWriter(notADirectory, '.code-notes', { debounceMs: 0 });
     let captured: Error | undefined;
     writer.onError = (e) => { captured = e; };
     await writer.regenerate([]);
