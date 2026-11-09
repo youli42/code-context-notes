@@ -35,6 +35,28 @@ describe('ExportWriter', () => {
     expect(digest.startsWith('# Code Notes Digest')).toBe(true);
   });
 
+  it('does not create the storage directory when there are no notes', async () => {
+    const ws = await tmpdir();
+    const writer = new ExportWriter(ws, '.code-notes', { debounceMs: 0 });
+
+    const outcome = await writer.regenerate([]);
+
+    expect(outcome).toBe('skipped');
+    await expect(fs.stat(path.join(ws, '.code-notes'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('still writes empty exports when the directory already exists', async () => {
+    const ws = await tmpdir();
+    await fs.mkdir(path.join(ws, '.code-notes'), { recursive: true });
+    const writer = new ExportWriter(ws, '.code-notes', { debounceMs: 0 });
+
+    const outcome = await writer.regenerate([]);
+
+    expect(outcome).toBe('written');
+    const idx = JSON.parse(await fs.readFile(path.join(ws, '.code-notes', 'INDEX.json'), 'utf-8'));
+    expect(idx.notes).toEqual([]);
+  });
+
   it('debounces rapid scheduleRegenerate calls', async () => {
     const ws = await tmpdir();
     await fs.mkdir(path.join(ws, '.code-notes'), { recursive: true });
@@ -57,7 +79,9 @@ describe('ExportWriter', () => {
     const writer = new ExportWriter(notADirectory, '.code-notes', { debounceMs: 0 });
     let captured: Error | undefined;
     writer.onError = (e) => { captured = e; };
-    await writer.regenerate([]);
+    // A note must be present: with no notes and no directory the writer
+    // correctly reports 'skipped' instead of touching the filesystem.
+    await writer.regenerate([sampleNote('a', notADirectory)]);
     expect(captured).toBeTruthy();
   });
 });

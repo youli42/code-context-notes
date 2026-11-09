@@ -18,6 +18,13 @@ export interface ExportWriterOptions {
 
 export type NotesAndErrors = { notes: Note[]; errors: { file: string; message: string }[] };
 
+/**
+ * What one regeneration attempt did.
+ * `skipped` means there was nothing to write and the storage directory does
+ * not exist — exporting must never be the reason `.code-notes/` appears.
+ */
+export type ExportOutcome = 'written' | 'skipped' | 'disabled' | 'failed';
+
 export class ExportWriter {
   private workspaceRoot: string;
   private storageDir: string;
@@ -64,19 +71,28 @@ export class ExportWriter {
    * Calls are serialized on `writeQueue` so the debounced timer and a
    * manual regenerate can't interleave their INDEX.json/AGENTS.md writes.
    */
-  regenerate(input: Note[] | NotesAndErrors): Promise<'written' | 'disabled' | 'failed'> {
+  regenerate(input: Note[] | NotesAndErrors): Promise<ExportOutcome> {
     const run = this.writeQueue.then(() => this.doRegenerate(input));
     this.writeQueue = run.catch(() => {});
     return run;
   }
 
-  private async doRegenerate(input: Note[] | NotesAndErrors): Promise<'written' | 'disabled' | 'failed'> {
+  private async doRegenerate(input: Note[] | NotesAndErrors): Promise<ExportOutcome> {
     const { notes, errors } = Array.isArray(input) ? { notes: input, errors: [] } : input;
     try {
       const cfg = this.getConfig();
       if (!cfg.enabled) return 'disabled';
 
       const dir = path.join(this.workspaceRoot, this.storageDir);
+
+      // The storage directory is created by the first note write, never by
+      // export regeneration. Writing empty INDEX.json/AGENTS.md into a
+      // workspace that has no notes would litter it for nothing.
+      if (notes.length === 0) {
+        const exists = await fs.stat(dir).then(s => s.isDirectory()).catch(() => false);
+        if (!exists) return 'skipped';
+      }
+
       await fs.mkdir(dir, { recursive: true });
       if (cfg.indexJson) {
         const idx = buildIndex(notes, this.workspaceRoot, new Date(), this.storageDir, errors);
